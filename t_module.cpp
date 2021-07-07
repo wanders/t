@@ -143,3 +143,122 @@ SCU_TEST(mod_removebb, "Basic blocks can be removed from function") {
   SCU_ASSERT_FALSE((bool)f->getEntry());
   SCU_ASSERT_EQUAL(bb2, f->at(0));
 }
+
+SCU_TEST(bb_successors_zero_or_more,
+         "Each basic block has zero or more successor basic blocks") {
+  auto bb = BasicBlock::make("bb");
+  auto succ1 = BasicBlock::make("succ1");
+  auto succ2 = BasicBlock::make("succ2");
+
+  int cnt = 0;
+  bb->eachSuccessor([&cnt](std::string, BasicBlock::Ptr &) { cnt++; });
+  SCU_ASSERT_EQUAL(cnt, 0);
+  bb->addSuccessor(succ1, "x");
+
+  cnt = 0;
+  bool seen_succ1 = false;
+  bool seen_succ2 = false;
+  bb->eachSuccessor([&](std::string, BasicBlock::Ptr &bb) {
+    cnt++;
+    if (bb == succ1)
+      seen_succ1 = true;
+    if (bb == succ2)
+      seen_succ2 = true;
+  });
+  SCU_ASSERT_EQUAL(cnt, 1);
+  SCU_ASSERT_TRUE(seen_succ1);
+  SCU_ASSERT_FALSE(seen_succ2);
+
+  bb->addSuccessor(succ2, "succ2");
+
+  cnt = 0;
+  seen_succ1 = false;
+  seen_succ2 = false;
+  bb->eachSuccessor([&](std::string, BasicBlock::Ptr &bb) {
+    cnt++;
+    if (bb == succ1)
+      seen_succ1 = true;
+    if (bb == succ2)
+      seen_succ2 = true;
+  });
+  SCU_ASSERT_EQUAL(cnt, 2);
+  SCU_ASSERT_TRUE(seen_succ1);
+  SCU_ASSERT_TRUE(seen_succ2);
+}
+
+SCU_TEST(bb_successors_tag, "Each successor is annotated with a tag string") {
+  auto bb = BasicBlock::make("bb");
+  auto succ1 = BasicBlock::make("succ1");
+  auto succ2 = BasicBlock::make("succ2");
+
+  bb->addSuccessor(succ1, "true");
+  bb->addSuccessor(succ2, "false");
+
+  bool seen_succ1 = false;
+  bool seen_succ2 = false;
+  bb->eachSuccessor([&](std::string tag, BasicBlock::Ptr &bb) {
+    if (tag == "true" && bb == succ1)
+      seen_succ1 = true;
+    if (tag == "false" && bb == succ2)
+      seen_succ2 = true;
+  });
+
+  SCU_ASSERT_TRUE(seen_succ1);
+  SCU_ASSERT_TRUE(seen_succ2);
+
+  SCU_ASSERT_EQUAL(bb->getSuccessor("true"), succ1);
+  SCU_ASSERT_EQUAL(bb->getSuccessor("false"), succ2);
+}
+
+SCU_TEST(bb_successors_empty_string, "An empty string is a valid tag.") {
+  auto bb = BasicBlock::make("bb");
+  auto succ = BasicBlock::make("succ");
+
+  bb->addSuccessor(succ, "");
+
+  SCU_ASSERT_EQUAL(bb->getSuccessor(""), succ);
+  try {
+    bb->getSuccessor("x");
+    SCU_FAIL("Should not be reached due to exception");
+  } catch (std::out_of_range &) {
+  }
+}
+
+/* The behavior on same successor basicblock with different tags is unspecified.
+ * Assuming it is allowed */
+SCU_TEST(bb_successors_same, "Same successor with differen tags") {
+  auto bb = BasicBlock::make("bb");
+  auto succ = BasicBlock::make("succ");
+
+  bb->addSuccessor(succ, "A");
+  bb->addSuccessor(succ, "B");
+
+  bool seen_a = false;
+  bool seen_b = false;
+  bb->eachSuccessor([&](std::string tag, BasicBlock::Ptr &) {
+    if (tag == "A")
+      seen_a = true;
+    if (tag == "B")
+      seen_b = true;
+  });
+
+  SCU_ASSERT_TRUE(seen_a);
+  SCU_ASSERT_TRUE(seen_b);
+}
+
+SCU_TEST(
+    bb_successor_distinct,
+    "A basic block cannot have more than one successor with the same tag") {
+  auto bb = BasicBlock::make("bb");
+  auto succ1 = BasicBlock::make("succ1");
+  auto succ2 = BasicBlock::make("succ2");
+
+  bb->addSuccessor(succ1, "same");
+  try {
+    bb->addSuccessor(succ2, "same");
+    SCU_FAIL("Should not be reached due to exception");
+  } catch (std::invalid_argument &) {
+  }
+
+  SCU_ASSERT_EQUAL(bb->getSuccessor("same"), succ1);
+}

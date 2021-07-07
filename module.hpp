@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <assert.h>
@@ -26,7 +27,42 @@ public:
 
   const std::string &getName() const { return name; };
 
+  void addSuccessor(Ptr &bb, std::string tag) {
+    auto [_, did_insert] = successors.try_emplace(tag, bb);
+    if (!did_insert)
+      throw std::invalid_argument("tag already there");
+  }
+
+  void removeSuccessor(std::string tag) {
+    size_t removed = successors.erase(tag);
+    if (removed != 1)
+      throw std::invalid_argument("can't remove tag that isn't here");
+  }
+
+  Ptr getSuccessor(std::string tag) {
+    Ptr res = successors.at(tag).lock();
+    if (!res) {
+      successors.erase(tag);
+      throw std::out_of_range(tag);
+    }
+    return res;
+  }
+
+  void eachSuccessor(std::function<void(std::string, Ptr &)> cb) {
+    auto it = successors.begin();
+
+    while (it != successors.end()) {
+      if (auto x = it->second.lock()) {
+        cb(it->first, x);
+        it++;
+      } else {
+        it = successors.erase(it);
+      }
+    }
+  }
+
 private:
+  std::unordered_map<std::string, Ptr::weak_type> successors;
   std::string name;
 };
 
