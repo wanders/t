@@ -3,7 +3,7 @@ ifndef SCUDIR
 $(error SCUDIR must be set)
 endif
 
-TESTCASES:=t_module
+TESTCASES:=t_module t_dot
 .PHONY: test
 test: $(TESTCASES)
 	$(SCUDIR)/testrunner $(TESTCASES)
@@ -12,6 +12,7 @@ test: $(TESTCASES)
 CXXFLAGS:=-std=c++20 -Wall -Wextra -Werror
 
 t_module: module.hpp
+t_dot: module.hpp dot.hpp
 
 CXX=clang++-11
 
