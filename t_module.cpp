@@ -262,3 +262,58 @@ SCU_TEST(
 
   SCU_ASSERT_EQUAL(bb->getSuccessor("same"), succ1);
 }
+
+SCU_TEST(func_validate_1, "Function validator detects missing entry") {
+  auto f = Function::make("Function");
+  auto bb1 = BasicBlock::make("foo");
+
+  std::vector<std::string> err;
+
+  err.clear();
+  SCU_ASSERT_FALSE(f->validate(err));
+  SCU_ASSERT_EQUAL_FATAL(err.size(), 1);
+  SCU_ASSERT_EQUAL(err[0], "Function does not have an entry basicblock");
+
+  f->addBasicBlock(bb1);
+
+  err.clear();
+  SCU_ASSERT_FALSE(f->validate(err));
+  SCU_ASSERT_EQUAL_FATAL(err.size(), 1);
+  SCU_ASSERT_EQUAL(err[0], "Function does not have an entry basicblock");
+
+  f->setEntry(bb1);
+
+  err.clear();
+  SCU_ASSERT_TRUE(f->validate(err));
+  SCU_ASSERT_EQUAL(err.size(), 0);
+}
+
+SCU_TEST(func_validate_2, "Function validator detects unreachable basicblock") {
+  auto f = Function::make("Function");
+  auto bb_e = BasicBlock::make("E");
+  auto bb_a = BasicBlock::make("A");
+  auto bb_b = BasicBlock::make("B");
+  auto bb_c = BasicBlock::make("C");
+
+  f->addBasicBlock(bb_e, Function::Entry);
+  f->addBasicBlock(bb_a);
+  f->addBasicBlock(bb_b);
+  f->addBasicBlock(bb_c);
+
+  bb_e->addSuccessor(bb_a, "");
+  bb_a->addSuccessor(bb_b, "");
+  bb_b->addSuccessor(bb_a, "loop");
+
+  std::vector<std::string> err;
+
+  err.clear();
+  SCU_ASSERT_FALSE(f->validate(err));
+  SCU_ASSERT_EQUAL_FATAL(err.size(), 1);
+  SCU_ASSERT_EQUAL(err[0], "BasicBlock 'C' is not reachable from entry");
+
+  bb_b->addSuccessor(bb_c, "");
+
+  err.clear();
+  SCU_ASSERT_TRUE(f->validate(err));
+  SCU_ASSERT_EQUAL(err.size(), 0);
+}

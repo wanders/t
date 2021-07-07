@@ -1,9 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <assert.h>
@@ -104,6 +106,50 @@ public:
 
   auto begin() const { return basicblocks.begin(); }
   auto end() const { return basicblocks.end(); }
+
+  bool validate(std::vector<std::string> &errors) const {
+    /* It has a one and only one entry point. */
+
+    bool res = true;
+
+    auto entry = getEntry();
+    if (!entry) {
+      errors.emplace_back("Function does not have an entry basicblock");
+      /* can't do futher checking without an entry point */
+      return false;
+    }
+
+    /*
+      Each basic block is reachable from the entry point by traversing the links
+      from a basic block to its successors.
+    */
+    std::unordered_set<BasicBlock::Ptr> seen;
+    std::function<void(BasicBlock::Ptr &)> recurse =
+        [&recurse, &seen](BasicBlock::Ptr &bb) -> void {
+      seen.insert(bb);
+      /* yo dawg, I heard you like lambdas so I put a lambda in your lambda */
+      bb->eachSuccessor([&](std::string, BasicBlock::Ptr &succ) {
+        if (!seen.contains(succ))
+          recurse(succ);
+      });
+    };
+    recurse(entry);
+
+    for (auto &bb : *this) {
+      if (!seen.contains(bb)) {
+        errors.emplace_back("BasicBlock '" + bb->getName() +
+                            "' is not reachable from entry");
+        res = false;
+      }
+    }
+
+    /*
+      Each basic block has, at most, one successor per tag.
+     */
+    /* this is enforced by api, so no need to validate */
+
+    return res;
+  }
 
 private:
   std::string name;
